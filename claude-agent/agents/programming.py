@@ -1,5 +1,6 @@
 from claude_agent_sdk import ClaudeAgentOptions
-from tools.git_manager import git_manager
+from pydantic import BaseModel, Field
+from typing import List
 
 PROMPT = """
 Eres un asistente de desarrollo que realizará cambios MENORES en código.
@@ -16,14 +17,47 @@ ARCHIVOS A MODIFICAR: Posibles archivos a modificar
 Proporciona SOLO el diff necesario (formato unified diff).
 """
 
+schema = {
+    "type": "object",
+    "properties": {
+        "changed_files": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "List of file paths that were changed"
+        },
+        "message": {
+            "type": "string",
+            "description": "Commit message summarizing the changes made"
+        },
+        "title": {
+            "type": "string",
+            "description": "Title for the pull request"
+        },
+        "body": {
+            "type": "string",
+            "description": "Body for the pull request"
+        }
+    },
+    "required": ["changed_files", "message", "title", "body"]
+}
+
+class CommitInfo(BaseModel):
+    """Modelo para información de commit y pull request"""
+    changed_files: List[str] = Field(description="List of file paths that were changed")
+    message: str = Field( description="Commit message summarizing the changes made")
+    title: str = Field(description="Title for the pull request")
+    body: str = Field(description="Body for the pull request")
+
 programming_agent = ClaudeAgentOptions(
     system_prompt=PROMPT,
-    mcp_servers={
-        "git_manager": git_manager
-        },
     allowed_tools=[
-        "Read", "Edit", "Glob",
-        "mcp__git_manager_clone", "mcp__git_manager__branch", "mcp__git_manager__commit"],
-    permission_mode='acceptEdits',
+        "Read", "Edit", "Glob"],
+    permission_mode='bypassPermissions',
+    output_format={
+        "type": "json_schema",
+        "schema": CommitInfo.model_json_schema()
+    },
     cwd="./tmp"
 )
